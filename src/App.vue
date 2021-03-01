@@ -189,6 +189,14 @@ export default {
     };
   },
   created: function() {
+    const tickersData = localStorage.getItem("cryptonomicon-list");
+    if (tickersData) {
+      this.tickersList = JSON.parse(tickersData);
+      this.tickersList.forEach( ticker => {
+        this.subscribeToUpdates(ticker.name);
+      });
+    }
+
     this.getData().then(response => {
       this.hintsData = response.Data;
       this.isDataLoaded = true;
@@ -202,6 +210,23 @@ export default {
       let data = await response;
       return data.json();
     },
+    subscribeToUpdates(tickerName) {
+      setInterval(async () => {
+        const req = await fetch(
+          `https://min-api.cryptocompare.com/data/price?fsym=${tickerName}&tsyms=USD&api_key=8b52178377918a4dba715c0913642a3ecfe85ad70209dd0155652d241d5b7785`
+        );
+        const newData = await req.json();
+        this.tickersList.find(ticker => {
+          return ticker.name === tickerName;
+        }).price = this.normalizePrice(newData);
+
+        if (this.selectedState?.name === tickerName) {
+          this.graphs.push(newData.USD);
+        }
+        // currentTicker.price = newData.USD;
+      }, 5000);
+      this.ticker = "";
+    },
     addTicker() {
       const currentTicker = {
         name: this.ticker,
@@ -209,21 +234,9 @@ export default {
       };
       this.tickersList.push(currentTicker);
       this.isTickerInList = false;
-      setInterval(async () => {
-        const req = await fetch(
-          `https://min-api.cryptocompare.com/data/price?fsym=${currentTicker.name}&tsyms=USD&api_key=`
-        );
-        const newData = await req.json();
-        this.tickersList.find(ticker => {
-          return ticker.name === currentTicker.name;
-        }).price = this.normalizePrice(newData);
+      localStorage.setItem("cryptonomicon-list", JSON.stringify(this.tickersList));
 
-        if (this.selectedState?.name === currentTicker.name) {
-          this.graphs.push(newData.USD);
-        }
-        // currentTicker.price = newData.USD;
-      }, 5000);
-      this.ticker = "";
+      this.subscribeToUpdates(currentTicker.name);
     },
     addTickerFromHints(hint) {
       this.ticker = hint.Symbol;
