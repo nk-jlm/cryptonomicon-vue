@@ -29,9 +29,7 @@
       <section>
         <div class="flex">
           <div class="max-w-xs">
-            <label for="wallet" class="block text-sm font-medium text-gray-700">
-              Ticker
-            </label>
+            <label for="wallet" class="block text-sm font-medium text-gray-700">Ticker</label>
             <div class="mt-1 relative rounded-md shadow-md">
               <input
                 v-model="ticker"
@@ -88,10 +86,23 @@
         </button>
       </section>
       <template v-if="tickersList.length">
+        <div>
+          <button
+            @click="page = page - 1"
+            v-if="page > 1"
+            class="my-4 mx-2 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Prev
+          </button>
+          <button
+            @click="page = page + 1"
+            v-if="hasNextPage"
+            class="my-4 mx-2 inline-flex items-center py-2 px-4 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-full text-white bg-gray-600 hover:bg-gray-700 transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Next
+          </button>
+          <p>Filter: <input type="text" v-model="filter" @input="page=1"></p>
+        </div>
         <hr class="w-full border-t border-gray-600 my-4" />
         <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
-            v-for="(item, index) in tickersList"
+            v-for="(item, index) in paginatedTickers"
             :key="index"
             @click="selectTicker(item)"
             :class="{
@@ -109,7 +120,7 @@
             </div>
             <div class="w-full border-t border-gray-200"></div>
             <button
-              @click.stop="handleTicker(item)"
+              @click.stop="handleTickerDelete(item)"
               class="flex items-center justify-center font-medium w-full bg-gray-100 px-4 py-4 sm:px-6 text-md text-gray-500 hover:text-gray-600 hover:bg-gray-200 hover:opacity-20 transition-all focus:outline-none"
             >
               <svg
@@ -138,7 +149,7 @@
         </h3>
         <div class="flex items-end border-gray-600 border-b border-l h-64">
           <div
-            v-for="(bar, index) in normalizeGraph(graphs)"
+            v-for="(bar, index) in normalizedGraph"
             :key="index"
             :style="{ height: `${bar}%` }"
             class="bg-purple-800 border w-10"
@@ -180,19 +191,29 @@ export default {
     return {
       ticker: "",
       tickersList: [],
-      selectedState: "",
+      selectedState: null,
       hintsData: {},
       isDataLoaded: false,
       hintsList: [],
       graphs: [],
-      isTickerInList: false
+      isTickerInList: false,
+      page: 1,
+      filter: ""
     };
   },
   created: function() {
+    const windowData = Object.fromEntries(new URL(window.location).searchParams.entries());
+    const VALID_KEYS = ["filter", "page"];
+    VALID_KEYS.forEach(key => {
+      if (windowData[key]) {
+        this[key] = windowData[key];
+      }
+    });
+
     const tickersData = localStorage.getItem("cryptonomicon-list");
     if (tickersData) {
       this.tickersList = JSON.parse(tickersData);
-      this.tickersList.forEach( ticker => {
+      this.tickersList.forEach(ticker => {
         this.subscribeToUpdates(ticker.name);
       });
     }
@@ -202,6 +223,48 @@ export default {
       this.isDataLoaded = true;
     });
   },
+  computed: {
+    startIndex() {
+      return (this.page - 1) * 6;
+    },
+    endIndex() {
+      return this.page * 6;
+    },
+    filteredTickers() {
+      return this.tickersList.filter(ticker => ticker.name.includes(this.filter));
+    },
+    paginatedTickers() {
+      return this.filteredTickers.slice(this.startIndex, this.endIndex);
+    },
+    hasNextPage() {
+      return this.filteredTickers.length > this.endIndex;
+    },
+    normalizedGraph() {
+      const maxValue = Math.max(...this.graphs);
+      const minValue = Math.min(...this.graphs);
+      if (maxValue === minValue) {
+        return this.graphs.map(() => 50);
+      }
+      return this.graphs.map(graph => {
+        return 5 + ((graph - minValue) * 95) / (maxValue - minValue);
+      });
+    },
+    filteredHints() {
+      let filteredList = [];
+      Object.keys(this.hintsData).forEach(key => {
+        if (this.isTickerInHintList(key) && filteredList.length < 4) {
+          filteredList.push(this.hintsData[key]);
+        }
+      });
+      return filteredList;
+    },
+    pageStateOptions() {
+      return {
+        filter: this.filter,
+        page: this.page
+      };
+    }
+  },
   methods: {
     async getData() {
       const response = fetch(
@@ -210,6 +273,7 @@ export default {
       let data = await response;
       return data.json();
     },
+
     subscribeToUpdates(tickerName) {
       setInterval(async () => {
         const req = await fetch(
@@ -232,10 +296,9 @@ export default {
         name: this.ticker,
         price: "-"
       };
-      this.tickersList.push(currentTicker);
+      this.tickersList = [...this.tickersList, currentTicker];
       this.isTickerInList = false;
-      localStorage.setItem("cryptonomicon-list", JSON.stringify(this.tickersList));
-
+      this.filter = "";
       this.subscribeToUpdates(currentTicker.name);
     },
     addTickerFromHints(hint) {
@@ -252,17 +315,8 @@ export default {
       });
     },
     setFilteredHintsList() {
-      this.hintsList = this.getFilteredHints();
+      this.hintsList = this.filteredHints;
       this.isTickerInList = false;
-    },
-    getFilteredHints() {
-      let filteredList = [];
-      Object.keys(this.hintsData).forEach(key => {
-        if (this.isTickerInHintList(key) && filteredList.length < 4) {
-          filteredList.push(this.hintsData[key]);
-        }
-      });
-      return filteredList;
     },
     isTickerInHintList(key) {
       let normalHintSymbol = this.normalizeSymbols(this.hintsData[key].Symbol);
@@ -279,24 +333,44 @@ export default {
     normalizeSymbols(text) {
       return text.toLocaleLowerCase().replace(/ /g, "");
     },
-    handleTicker(ticker) {
+    handleTickerDelete(ticker) {
       this.tickersList = this.tickersList.filter(item => {
         return item.name !== ticker.name;
       });
+      if (this.selectedState === ticker) {
+        this.selectedState = null;
+      }
     },
     selectTicker(item) {
       this.selectedState = item;
       this.graphs = [];
     },
     normalizePrice(data) {
-      return data.USD > 1 ? data.USD.toFixed(2) : data.USD.toPrecision(2);
+      return data.USD > 1 ? data.USD.toFixed(2) : data.USD?.toPrecision(2);
+    }
+  },
+  watch: {
+    tickersList(newValue, oldValue) {
+      //why it doesn't work in add method??? - it is link to data and it wasn't changed
+      console.log(newValue === oldValue);
+      localStorage.setItem("cryptonomicon-list", JSON.stringify(this.tickersList));
     },
-    normalizeGraph() {
-      const maxValue = Math.max(...this.graphs);
-      const minValue = Math.min(...this.graphs);
-      return this.graphs.map(graph => {
-        return 5 + ((graph - minValue) * 95) / (maxValue - minValue);
-      });
+    selectedState() {
+      this.graphs = [];
+    },
+    paginatedTickers() {
+      if ((this.paginatedTickers.length === 0) && (this.page > 1)) {
+        this.page -= 1;
+      }
+    },
+    filter() {
+      this.page = 1;
+    },
+    pageStateOptions(value) {
+      window.history.pushState(
+        null,
+        document.title,
+        `${window.location.pathname}?filter=${value.filter}&page=${value.page}`);
     }
   }
 };
