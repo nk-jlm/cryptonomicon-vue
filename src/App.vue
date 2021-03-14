@@ -231,7 +231,6 @@ export default {
         });
       });
     }
-    setInterval(this.updateTickers, 5000);
 
     this.getData().then(response => {
       this.hintsData = response.Data;
@@ -292,24 +291,11 @@ export default {
     },
     updateTicker(tickerName, price) {
       this.tickersList.filter(t => t.name === tickerName).forEach(t => {
+          if(t === this.selectedState) {
+            this.graphs.push(price);
+          }
           t.price = price;
         });
-    },
-    async updateTickers() {
-      /*      if (!this.tickersList.length) {
-              return;
-            }
-            const tickerData = await loadTickers(this.tickersList.map(t => t.name));
-
-            console.log(tickerData);
-            this.tickersList.forEach(ticker => {
-              if(ticker === this.selectedState) {
-                this.graphs.push(price);
-              }
-              const price = tickerData[ticker.name.toUpperCase()];
-              ticker.price = price || "-";
-            });*/
-      this.ticker = "";
     },
     addTicker() {
       const currentTicker = {
