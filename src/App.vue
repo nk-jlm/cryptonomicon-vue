@@ -155,7 +155,7 @@
         <h3 class="text-lg leading-6 font-medium text-gray-900 my-8">
           {{ selectedState.name }} - USD
         </h3>
-        <div class="flex items-end border-gray-600 border-b border-l h-64">
+        <div class="flex items-end border-gray-600 border-b border-l h-64" ref="graph">
           <div
               v-for="(bar, index) in normalizedGraph"
               :key="index"
@@ -193,6 +193,8 @@
 </template>
 
 <script>
+/* eslint-disable prettier/prettier */
+
 import {subscribeToTicker, unsubscribeToTicker} from "@/api";
 
 export default {
@@ -208,7 +210,8 @@ export default {
       graphs: [],
       isTickerInList: false,
       page: 1,
-      filter: ""
+      filter: "",
+      maxGraphElements: 1
     };
   },
   created: function () {
@@ -231,11 +234,16 @@ export default {
         });
       });
     }
-
     this.getData().then(response => {
       this.hintsData = response.Data;
       this.isDataLoaded = true;
     });
+  },
+  mounted() {
+    window.addEventListener("resize", this.calculateMaxGraphElements);
+  },
+  beforeUnmount() {
+    window.removeEventListener("resize", this.calculateMaxGraphElements);
   },
   computed: {
     startIndex() {
@@ -282,6 +290,12 @@ export default {
     }
   },
   methods: {
+    calculateMaxGraphElements() {
+      if(!this.$refs.graph) {
+        return;
+      }
+      this.maxGraphElements = this.$refs.graph.clientWidth / 38;
+    },
     async getData() {
       const response = fetch(
           `https://min-api.cryptocompare.com/data/all/coinlist?summary=true`
@@ -290,12 +304,16 @@ export default {
       return data.json();
     },
     updateTicker(tickerName, price) {
+      console.log(this.maxGraphElements)
       this.tickersList.filter(t => t.name === tickerName).forEach(t => {
-          if(t === this.selectedState) {
-            this.graphs.push(price);
+        if (t === this.selectedState) {
+          this.graphs.push(price);
+          while (this.graphs.length > this.maxGraphElements) {
+            this.graphs.shift();
           }
-          t.price = price;
-        });
+        }
+        t.price = price;
+      });
     },
     addTicker() {
       const currentTicker = {
@@ -353,7 +371,6 @@ export default {
     },
     selectTicker(item) {
       this.selectedState = item;
-      this.graphs = [];
     },
     formattedPrice(price) {
       if (price === "-") {
@@ -373,6 +390,7 @@ export default {
     },
     selectedState() {
       this.graphs = [];
+      this.$nextTick().then(this.calculateMaxGraphElements);
     },
     paginatedTickers() {
       if (this.paginatedTickers.length === 0 && this.page > 1) {
