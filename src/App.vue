@@ -114,7 +114,8 @@
               :key="index"
               @click="selectTicker(item)"
               :class="{
-              'border-4': selectedState === item
+              'border-4': selectedState === item,
+              'bg-red-100': item.status === 'INVALID_CODE'
             }"
               class="bg-white overflow-hidden shadow rounded-lg border-purple-800 border-solid cursor-pointer"
           >
@@ -229,8 +230,8 @@ export default {
     if (tickersData) {
       this.tickersList = JSON.parse(tickersData);
       this.tickersList.forEach(ticker => {
-        subscribeToTicker(ticker.name, (newPrice) => {
-          this.updateTicker(ticker.name, newPrice);
+        subscribeToTicker(ticker.name, (newPrice, message) => {
+          this.updateTicker(ticker.name, newPrice, message);
         });
       });
     }
@@ -303,9 +304,12 @@ export default {
       let data = await response;
       return data.json();
     },
-    updateTicker(tickerName, price) {
-      console.log(this.maxGraphElements)
+    updateTicker(tickerName, price, message) {
       this.tickersList.filter(t => t.name === tickerName).forEach(t => {
+        if(message === "INVALID_CODE") {
+          t.status = message;
+          return;
+        }
         if (t === this.selectedState) {
           this.graphs.push(price);
           while (this.graphs.length > this.maxGraphElements) {
@@ -321,8 +325,8 @@ export default {
         price: "-"
       };
       this.tickersList = [...this.tickersList, currentTicker];
-      subscribeToTicker(currentTicker.name, (newPrice) => {
-        this.updateTicker(currentTicker.name, newPrice);
+      subscribeToTicker(currentTicker.name, (newPrice, message) => {
+        this.updateTicker(currentTicker.name, newPrice, message);
       });
       this.isTickerInList = false;
       this.filter = "";
@@ -380,9 +384,9 @@ export default {
     }
   },
   watch: {
-    tickersList(newValue, oldValue) {
+    tickersList() {
       //why it doesn't work in add method??? - it is link to data and it wasn't changed
-      console.log(newValue === oldValue);
+      //console.log(newValue === oldValue);
       localStorage.setItem(
           "cryptonomicon-list",
           JSON.stringify(this.tickersList)
