@@ -6,15 +6,6 @@ const API_KEY =
 const socket = new WebSocket(
   `wss://streamer.cryptocompare.com/v2?api_key=${API_KEY}`
 );
-const sharedWorker = new SharedWorker("worker.js");
-sharedWorker.port.start();
-sharedWorker.port.postMessage([15, 30]);
-
-window.sharedWorker = sharedWorker;
-
-sharedWorker.port.onmessage = function(e) {
-  console.log("Message received from worker", e.data);
-};
 
 const AGGREGATE_INDEX = "5";
 const INVALID_PARAMETER = "500";
@@ -67,7 +58,6 @@ socket.addEventListener("message", e => {
     });
   }
   updateHandlers(currency, newPrice);
-  //sharedWorker.port.postMessage({ currency, newPrice });
   //console.log({ currency, newPrice });
 });
 
@@ -83,10 +73,6 @@ function handlerOnInvalidCurrency(message) {
 }
 
 function handlerOpenedTabs() {
-  //sharedWorker.port.postMessage("new tab");
-  //sharedWorker.port.onmessage = e => {
-  // console.log(e);
-  //  };
   //updateHandlers(ev.currency, ev.newPrice);
 }
 function updateHandlers(currency, newPrice, message) {
